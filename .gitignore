@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large data artifacts (regenerable)
+Project_Data_JPM_2018_2024.csv
+Dynamic_Cleaned_Dataset.csv

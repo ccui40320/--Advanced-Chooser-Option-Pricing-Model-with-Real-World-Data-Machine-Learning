@@ -1,0 +1,164 @@
+================================================================================
+  数据需求规格说明书 (Data Requirement Specification)
+  项目: Advanced Chooser Option Pricing Model with Real-World Data & ML
+  版本: v1.2 | 日期: 2026-06-10
+================================================================================
+
+1. 项目背景与目标
+--------------------------------------------------------------------------------
+本项目旨在构建一个基于真实数据的 Chooser Option (选择性期权) 定价模型。
+数据覆盖 2018-01-01 至 2024-12-31 期间，用于训练机器学习模型并校准
+Black-Scholes-Merton (BSM) 定价公式。本说明书定义了所需数据的范围、
+来源、格式和质量标准。
+
+最终数据集包含 17 个字段 (1760 行)，覆盖金融市场数据、宏观经济指标、
+衍生特征和情绪代理指标，为 BSM 定价和 ML 模型提供完整的输入。
+
+
+2. 数据字典 (Data Dictionary)
+--------------------------------------------------------------------------------
+
+2.1 金融市场数据 (Financial Market Data)
+
+ 字段名             | 类型    | 频率  | 来源              | 说明
+ -------------------|---------|-------|-------------------|-------------------------------
+ Date               | Date    | 日频  | Yahoo Finance     | 交易日 (美国交易日历)
+ JPM_Open           | Float   | 日频  | Yahoo Finance     | JPM 开盘价 (USD)
+ JPM_High           | Float   | 日频  | Yahoo Finance     | JPM 当日最高价 (USD)
+ JPM_Low            | Float   | 日频  | Yahoo Finance     | JPM 当日最低价 (USD)
+ JPM_Close          | Float   | 日频  | Yahoo Finance     | JPM 收盘价 (USD) [BSM: S₀]
+ JPM_Adj_Close      | Float   | 日频  | Yahoo Finance     | JPM 复权收盘价 (USD)
+ JPM_Volume         | Integer | 日频  | Yahoo Finance     | JPM 当日成交量 (股)
+ JPM_Dividend       | Float   | 不定期 | Yahoo Finance     | JPM 每股分红金额 (USD)
+
+2.2 波动率数据 (Volatility Data)
+
+ VIX_Close          | Float   | 日频  | Yahoo Finance     | CBOE 波动率指数 (VIX)
+ Volatility_21D     | Float   | 日频  | 计算衍生           | 21天滚动年化历史波动率
+
+2.3 宏观经济数据 (Macroeconomic Data)
+
+ RiskFreeRate_3M    | Float   | 日频  | FRED (DGS3MO)     | 3个月国债收益率 (小数形式)
+ RiskFreeRate_1Y    | Float   | 日频  | FRED (DGS1)       | 1年期国债收益率 (小数形式)
+ RiskFreeRate_10Y   | Float   | 日频  | FRED (DGS10)      | 10年期国债收益率 (小数形式)
+
+                    注: 所有利率已转换为小数格式 (如 1.44% -> 0.0144)
+                    BSM 公式要求使用小数形式。
+
+2.4 衍生特征 (Derived Features)
+
+ Dividend_Yield     | Float   | 日频  | 计算衍生           | 年化股息率 q (滚动252天累计分红/股价)
+ Daily_Return       | Float   | 日频  | 计算衍生           | 简单日收益率 (pct_change)
+ Log_Return         | Float   | 日频  | 计算衍生           | 对数日收益率 (ln(Pₜ/Pₜ₋₁))
+
+2.5 情绪数据 (Sentiment Data)
+
+ Sentiment_Score    | Float   | 日频  | 市场情绪代理       | 综合情绪评分 [0,1], 高=乐观
+ Article_Count      | Integer | 日频  | 市场情绪代理       | 情绪数据源维度的计数
+
+                    注: 情绪数据默认通过市场数据代理生成 (基于 VIX 反转 + 日收益率)。
+                    如需外部新闻源 (GDELT/NewsAPI)，可在脚本中修改 USE_SENTIMENT 配置。
+
+
+3. 数据来源与技术规范
+--------------------------------------------------------------------------------
+
+ 3.1 Yahoo Finance (yfinance)
+   - 用途: JPM 股价/股息、VIX 指数
+   - 认证: 无需 API Key
+   - 限流: 无代理时可能出现 YFRateLimitError，建议配置 HTTP 代理
+   - 库: yfinance
+
+ 3.2 FRED (Federal Reserve Economic Data)
+   - 用途: 美国国债收益率 (DGS3MO, DGS1, DGS10)
+   - 认证: 需要 API Key (免费)
+   - 库: fredapi
+   - 注意: FRED 返回百分比值，代码中已自动除以 100 转为小数
+
+ 3.3 Alpha Vantage (备用数据源)
+   - 用途: JPM 股价 (验证/备用)
+   - 认证: 需要 API Key (免费)
+   - 库: alpha_vantage
+   - 注意: 免费版限 5 次/分钟, 500 次/天
+
+ 3.4 情绪数据 — 三重方案
+   a) GDELT Project (推荐):
+      - 用途: 全球新闻数据库，自带情感评分 (tone)
+      - 认证: 无需 API Key，完全免费
+      - 覆盖: 1979 年至今
+      - 库: gdeltdoc (pip install gdeltdoc)
+   b) NewsAPI (备选):
+      - 用途: 金融新闻文本，用于 NLP 情感分析
+      - 认证: 需要 API Key (免费版 100 请求/天)
+      - 库: newsapi-python, textblob
+   c) 市场数据情绪代理 (自动备用):
+      - 方法: VIX + 日收益率 → 映射到 [0,1] 情绪评分
+      - 优势: 稳定可用，无需外部 API
+
+
+4. 数据预处理规则
+--------------------------------------------------------------------------------
+
+ 4.1 时间对齐
+   - 所有数据以 JPM 美股交易日历为基准 (Left Join on Date)
+   - 过滤周末和美股节假日
+
+ 4.2 缺失值处理
+   - VIX 和利率: 前向填充 (ffill)，因为非交易日无新数据
+   - 股息率: 前向填充后补零
+   - Volatility_21D / Daily_Return: 数据首行自然为 NaN (无前序数据)
+
+ 4.3 数据清洗
+   - 利率: 百分比 → 小数 (÷100)
+   - 股息: 绝对金额 → 年化股息率 (滚动252天累计 / 股价)
+   - 价格: 验证无负值
+   - 异常值: 保留原始值，标记偏离 3σ 的点以便后续处理
+
+ 4.4 数据验证
+   - Yahoo Alpha Vantage 双源交叉验证 (价格差异 < 5%)
+   - 检查: 股价 ≥ 0, VIX ≥ 0, 利率 ≥ 0
+
+
+5. 数据质量检查清单
+--------------------------------------------------------------------------------
+
+ ☑ 覆盖率: 2018-01-01 ~ 2024-12-31 (交易日约 1760 天)
+ ☑ 完整性: 17 列, 无关键列缺失
+ ☑ 准确性: BSM 参数已就绪 (S₀, r, q, σ)
+ ☑ 一致性: 利率已统一为小数形式
+ ☑ 可复现性: data_collection.py 可一键重新采集
+
+
+6. BSM 定价参数映射
+--------------------------------------------------------------------------------
+
+ BSM 参数 | 数据集字段          | 就绪状态
+ ---------|---------------------|----------
+ S₀       | JPM_Close           | ✅
+ K        | 配置参数 (如 $150)  | ⏳ Week 3
+ T (T₂)   | 配置参数 (如 1年)   | ⏳ Week 3
+ r        | RiskFreeRate_3M/1Y  | ✅ (小数形式)
+ q        | Dividend_Yield      | ✅ (已年化)
+ σ        | Volatility_21D      | ✅ (可用)
+ t₁       | 配置参数            | ⏳ Week 3
+
+
+7. 更新历史
+--------------------------------------------------------------------------------
+ v1.0 (2025-03-08) — 初始版本
+   - 定义 10 个基础字段 (JPM, VIX, DGS3MO)
+
+ v1.1 (2025-03-08) — 增强版本
+   - 新增: Dividend_Yield, Daily_Return, Log_Return
+   - 新增: RiskFreeRate_1Y, RiskFreeRate_10Y (多期限利率)
+   - 修复: 利率转换为小数格式
+   - 新增: Alpha Vantage + 情绪数据框架
+
+ v1.2 (2026-06-10) — 最终版
+   - 新增: Volatility_21D (21天滚动年化历史波动率)
+   - 新增: Sentiment_Score, Article_Count (市场情绪代理)
+   - 新增: GDELT/NewsAPI/市场代理 三重情绪方案
+   - 更新: 代理端口 7897→7892 (适配新VPN)
+   - 兼容: yfinance 1.2.0 MultiIndex 列处理
+   - 兼容: 新版 pandas (ffill() 替代 fillna(method=))
+   - 最终: 17 列 × 1760 行, BSM参数全部就绪

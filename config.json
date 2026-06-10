@@ -1,0 +1,17 @@
+{
+    "stock_price": 239.32,
+    "strike_price": 150.0,
+    "risk_free_rate": 0.0437,
+    "sigma": 0.1868,
+    "dividend_yield": 0.0240,
+    "T1": 0.5,
+    "T2": 1.0,
+    "source": "JPM real data (2024-12-30)",
+    "description": "Updated from real market data — RiskFreeRate_3M=4.37%, Volatility_21D=18.68%",
+    "bsm_params_ready": {
+        "S0": "JPM_Close",
+        "r": "RiskFreeRate_3M_Decimal",
+        "q": "Dividend_Yield",
+        "sigma": "Volatility_21D"
+    }
+}
