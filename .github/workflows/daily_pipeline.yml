@@ -40,7 +40,7 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add Dynamic_Cleaned_Dataset.csv
+        git add -f Dynamic_Cleaned_Dataset.csv
         # 只有数据文件真正变化时才 commit
         git diff --staged --quiet || git commit -m "auto: update Dynamic_Cleaned_Dataset.csv [skip ci]"
         git push
