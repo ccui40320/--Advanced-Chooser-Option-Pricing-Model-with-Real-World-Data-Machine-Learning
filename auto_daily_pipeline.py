@@ -274,42 +274,51 @@ def build_features(df, real_nlp_series):
 # ============================================================
 
 if __name__ == "__main__":
-    print("=" * 55)
-    print("  Quant Pipeline: 数据预处理与特征工程")
-    print(f"  日期: {START_DATE} ~ {TODAY_STR}")
-    print("=" * 55)
+    try:
+        print("=" * 55)
+        print("  Quant Pipeline: 数据预处理与特征工程")
+        print(f"  日期: {START_DATE} ~ {TODAY_STR}")
+        print("=" * 55)
 
-    # 1. 获取全量市场数据
-    raw = fetch_all_market_data()
+        # 1. 获取全量市场数据
+        print("\n[START] Step 1: fetch_all_market_data")
+        raw = fetch_all_market_data()
 
-    # 2. 获取 NLP 情感 (最近 28 天)
-    nlp = fetch_real_nlp_sentiment()
+        # 2. 获取 NLP 情感 (最近 28 天)
+        print("\n[START] Step 2: fetch_real_nlp_sentiment")
+        nlp = fetch_real_nlp_sentiment()
 
-    # 3. 清洗 + 特征工程
-    if not raw.empty:
-        final = build_features(raw, nlp)
+        # 3. 清洗 + 特征工程
+        print("\n[START] Step 3: build_features")
+        if not raw.empty:
+            final = build_features(raw, nlp)
 
-        # 4. 保存
-        output = 'Dynamic_Cleaned_Dataset.csv'
-        final.to_csv(output)
+            # 4. 保存
+            output = 'Dynamic_Cleaned_Dataset.csv'
+            final.to_csv(output)
 
-        print(f"\n[4/4] 完成!")
-        print(f"  文件: {output}")
-        print(f"  维度: {final.shape[0]} 行 x {final.shape[1]} 列")
-        print(f"  范围: {final.index[0].date()} ~ {final.index[-1].date()}")
+            print(f"\n[4/4] 完成!")
+            print(f"  文件: {output}")
+            print(f"  维度: {final.shape[0]} 行 x {final.shape[1]} 列")
+            print(f"  范围: {final.index[0].date()} ~ {final.index[-1].date()}")
 
-        # 打印 BSM 参数就绪状态
-        bsm_cols = {
-            'S0': 'JPM_Close',
-            'r (小数)': 'RiskFreeRate_3M_Decimal',
-            'q (年化股息率)': 'Dividend_Yield',
-            'sigma (21D波动率)': 'Volatility_21D',
-            'VIX': 'VIX_Close',
-            '情绪': 'Sentiment_Score',
-        }
-        print("\n  BSM 参数:")
-        for name, col in bsm_cols.items():
-            ok = col in final.columns
-            print(f"    {'[OK]' if ok else '[--]'} {name:15s} {col}")
-    else:
-        print("\n[FAIL] 数据获取失败")
+            # 打印 BSM 参数就绪状态
+            bsm_cols = {
+                'S0': 'JPM_Close',
+                'r (小数)': 'RiskFreeRate_3M_Decimal',
+                'q (年化股息率)': 'Dividend_Yield',
+                'sigma (21D波动率)': 'Volatility_21D',
+                'VIX': 'VIX_Close',
+                '情绪': 'Sentiment_Score',
+            }
+            print("\n  BSM 参数:")
+            for name, col in bsm_cols.items():
+                ok = col in final.columns
+                print(f"    {'[OK]' if ok else '[--]'} {name:15s} {col}")
+        else:
+            print("\n[FAIL] 数据获取失败")
+    except Exception as e:
+        print(f"\n[PIPELINE ERROR] {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
